@@ -6,6 +6,7 @@ import org.hrithik.documenteditor.classes.DocumentElement;
 import org.hrithik.documenteditor.repositories.DocumentRepository;
 import org.hrithik.documenteditor.schemas.DocumentSchema;
 import org.hrithik.documenteditor.schemas.MessageSchema;
+import org.hrithik.documenteditor.services.DocumentCacheService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -14,6 +15,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -25,6 +27,9 @@ public class WebSocketHandler extends TextWebSocketHandler {
 
     @Autowired
     private DocumentRepository documentRepository;
+
+    @Autowired
+    private DocumentCacheService documentCacheService;
 
     private final List<WebSocketSession> sessions = new CopyOnWriteArrayList<>();
 
@@ -38,25 +43,9 @@ public class WebSocketHandler extends TextWebSocketHandler {
         sessions.add(session);
 
         if (session.isOpen()) {
-            DocumentSchema receivedDocument = documentRepository.findById("105").orElse(null);
-            if (receivedDocument == null) {
-                System.err.println("Document with ID 105 not found!");
-                return;
-            }
+            getDocumentList(session);
 
-            idSessionMapping.putIfAbsent("105", new CopyOnWriteArrayList<>());
-            idSessionMapping.get("105").add(session);
 
-            MessageSchema receivedMessage = new MessageSchema(receivedDocument.getId(), receivedDocument.getContent());
-
-            try {
-                if (session.isOpen()) {
-                    session.sendMessage(new TextMessage(objectMapper.writeValueAsString(receivedMessage)));
-                }
-            } catch (IOException e) {
-                System.err.println("Failed to send message on connection established for session " + session.getId() + ": " + e.getMessage());
-                cleanupSession(session);
-            }
         }
 
         System.out.println("Connected to WebSocket Session: " + session.getId());
@@ -83,16 +72,96 @@ public class WebSocketHandler extends TextWebSocketHandler {
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
         String payload = message.getPayload();
         MessageSchema receivedMessage = objectMapper.readValue(payload, MessageSchema.class);
+        System.out.println(payload);
 
-        DocumentSchema doc = documentRepository.findById(receivedMessage.getDocumentId()).orElse(null);
-        if (doc == null) {
-            System.err.println("Document not found for ID: " + receivedMessage.getDocumentId());
-            return;
+        if (receivedMessage.getAction() != null) {
+
+            switch (receivedMessage.getAction()) {
+                case "getDocumentList":
+                    getDocumentList(session);
+                    break;
+                case "getDocument":
+                    getDocument(session, receivedMessage.getDocumentId());
+                    break;
+                case "createDocument":
+                    createDocument(session, receivedMessage.getDocumentId());
+                    break;
+                case "edit":
+                    editDocument(session, receivedMessage);
+                    break;
+                case "deleteDocument":
+                    deleteDocument(receivedMessage.getDocumentId());
+                    break;
+
+                default:
+                    break;
+
+            }
         }
 
-        doc.setContent(receivedMessage.getMessage());
+    }
 
-        documentRepository.save(doc);
+    private void createDocument(WebSocketSession session, String documentId) {
+        DocumentSchema doc = documentCacheService.createDocument(documentId);
+        MessageSchema res = new MessageSchema(documentId, doc.getContent());
+        try {
+            if (session.isOpen()) {
+                session.sendMessage(new TextMessage(objectMapper.writeValueAsString(res)));
+            }
+        } catch (IOException e) {
+            System.err.println("Failed to send message on connection established for session " + session.getId() + ": " + e.getMessage());
+            cleanupSession(session);
+        }
+
+    }
+
+    private void deleteDocument(String documentId) {
+        documentCacheService.deleteDocument(documentId);
+    }
+
+    private void getDocument(WebSocketSession session, String documentId) {
+        DocumentSchema doc = documentCacheService.getDocument(documentId);
+        if (doc != null) {
+            MessageSchema res = new MessageSchema("returnDocument", documentId, doc.getContent());
+
+            try {
+                if (session.isOpen()) {
+                    session.sendMessage(new TextMessage(objectMapper.writeValueAsString(res)));
+                }
+            } catch (IOException e) {
+                System.err.println("Failed to send message on connection established for session " + session.getId() + ": " + e.getMessage());
+                cleanupSession(session);
+            }
+            idSessionMapping.putIfAbsent(doc.getId(), new CopyOnWriteArrayList<>());
+            idSessionMapping.get(doc.getId()).add(session);
+        }
+
+    }
+
+    private void getDocumentList(WebSocketSession session) {
+        List<String> documentIdList = new ArrayList<>();
+        List<DocumentSchema> documentList = documentRepository.findAll();
+        for (DocumentSchema i : documentList) {
+            documentIdList.add(i.getId());
+        }
+        try {
+
+
+            MessageSchema message = new MessageSchema("documentList", documentIdList);
+
+            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(message)));
+        } catch (IOException e) {
+            System.err.println("Cannot send message");
+        }
+
+
+    }
+
+    private void editDocument(WebSocketSession session, MessageSchema receivedMessage) {
+        String documentId = receivedMessage.getDocumentId();
+
+        documentCacheService.saveDocument(documentId, receivedMessage.getMessage());
+
 
         List<WebSocketSession> sessionList = idSessionMapping.get(receivedMessage.getDocumentId());
         if (sessionList == null) {
@@ -100,26 +169,28 @@ public class WebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        Iterator<WebSocketSession> iterator = sessionList.iterator();
-        while (iterator.hasNext()) {
-            WebSocketSession webSocketSession = iterator.next();
-            if (!webSocketSession.getId().equals(session.getId())) {
-                if (webSocketSession.isOpen()) {
+        List<WebSocketSession> toBeRemoved = new ArrayList<>();
+
+        for (WebSocketSession curr : sessionList) {
+            if (!curr.getId().equals(session.getId())) {
+                if (curr.isOpen()) {
                     try {
-                        webSocketSession.sendMessage(new TextMessage(objectMapper.writeValueAsString(receivedMessage)));
+                        curr.sendMessage(new TextMessage(objectMapper.writeValueAsString(receivedMessage)));
                     } catch (IOException e) {
-                        System.err.println("Failed to send message to session " + webSocketSession.getId() + ": " + e.getMessage());
-                        cleanupSession(webSocketSession);
-                        iterator.remove();
+                        System.err.println("Failed to send message to session " + curr.getId() + " : " + e.getMessage());
+                        cleanupSession(curr);
+                        toBeRemoved.add(curr);
                     }
                 } else {
-                    iterator.remove();
+                    toBeRemoved.add(curr);
                 }
             }
         }
 
-        System.out.println("Received message: " + payload);
+        sessionList.removeAll(toBeRemoved);
+
     }
+
 
     private void broadcast(String message) {
         Iterator<WebSocketSession> iterator = sessions.iterator();

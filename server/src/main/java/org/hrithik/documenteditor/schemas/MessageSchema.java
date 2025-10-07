@@ -1,8 +1,42 @@
 package org.hrithik.documenteditor.schemas;
 
+import java.util.List;
+
 public class MessageSchema {
     private String documentId;
     private String message;
+    private List<String> documentIds;
+    private String action;
+
+    public MessageSchema() {
+    }
+
+    public MessageSchema(String action, String documentId, String message) {
+        this.action = action;
+        this.documentId = documentId;
+        this.message = message;
+    }
+
+    public MessageSchema(String documentId, String message) {
+        this.documentId = documentId;
+        this.message = message;
+    }
+
+    public MessageSchema(String action, List<String> documentIds) {
+        this.action = action;
+        this.documentIds = documentIds;
+    }
+    public MessageSchema(String action){
+        this.action=action;
+    }
+
+    public String getAction() {
+        return action;
+    }
+
+    public void setAction(String action) {
+        this.action = action;
+    }
 
     public String getDocumentId() {
         return documentId;
@@ -20,8 +54,12 @@ public class MessageSchema {
         this.message = message;
     }
 
-    public MessageSchema(String documentId, String message) {
-        this.documentId = documentId;
-        this.message = message;
+    public List<String> getDocumentIds() {
+        return documentIds;
+    }
+
+    public void setDocumentIds(List<String> documentIds) {
+        this.documentIds = documentIds;
     }
 }
+

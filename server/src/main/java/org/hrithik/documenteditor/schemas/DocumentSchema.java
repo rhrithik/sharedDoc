@@ -26,24 +26,24 @@ public class DocumentSchema {
         this.content = content;
     }
 
-    public HashMap<String, accessEnum> getUserAccess() {
-        return userAccess;
-    }
+//    public HashMap<String, accessEnum> getUserAccess() {
+//        return userAccess;
+//    }
 
-    public void setUserAccess(HashMap<String, accessEnum> userAccess) {
-        this.userAccess = userAccess;
-    }
+//    public void setUserAccess(HashMap<String, accessEnum> userAccess) {
+//        this.userAccess = userAccess;
+//    }
 
     @Id
     private String id;
     private String content;
-    private HashMap<String, accessEnum> userAccess;
+//    private HashMap<String, accessEnum> userAccess;
     public DocumentSchema() {}
 
     public DocumentSchema(String id, String content) {
         this.id = id;
         this.content = content;
-        userAccess = new HashMap<>();
+//        userAccess = new HashMap<>();
     }
 
 }
