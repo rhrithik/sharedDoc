@@ -95,7 +95,7 @@ public class WebSocketHandler extends TextWebSocketHandler {
                     getDocumentList(session);
                     break;
                 case "getDocument":
-                    getDocument(session, receivedMessage.getDocumentId());
+                    getDocument(session, receivedMessage.getDocumentId(),receivedMessage.getUsername());
                     break;
                 case "createDocument":
                     createDocument(session, receivedMessage.getDocumentId());
@@ -137,10 +137,12 @@ public class WebSocketHandler extends TextWebSocketHandler {
         documentCacheService.deleteDocument(documentId);
     }
 
-    private void getDocument(WebSocketSession session, String documentId) {
+    private void getDocument(WebSocketSession session, String documentId, String username) {
         DocumentSchema doc = documentCacheService.getDocument(documentId);
+
         if (doc != null) {
-            MessageSchema res = new MessageSchema("returnDocument", documentId, doc.getContent());
+            String access = doc.getUserAccess().getOrDefault(username,"");
+            MessageSchema res = new MessageSchema("returnDocument", documentId, doc.getContent(),access);
 
             try {
                 if (session.isOpen()) {
@@ -176,12 +178,12 @@ public class WebSocketHandler extends TextWebSocketHandler {
             }
             String username = usernameAttr.toString();
 
-            List<String> documentIdList = new ArrayList<>();
+            List<String[]> documentIdList = new ArrayList<>();
             List<DocumentSchema> allDocs = documentRepository.findByUserAccessContainingKey(username);
 
             for (DocumentSchema doc : allDocs) {
                 if (doc.getUserAccess() != null && doc.getUserAccess().containsKey(username)) {
-                    documentIdList.add(doc.getId());
+                    documentIdList.add(  new String[]{ doc.getId(),doc.getUserAccess().get(username)});
                 }
             }
 

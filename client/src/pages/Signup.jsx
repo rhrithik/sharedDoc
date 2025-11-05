@@ -7,12 +7,16 @@ import { useState } from "react";
 function Signup() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPass, setShowPass] = useState(false);
   const navigate = useNavigate();
 
   const handleSignup = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post("http://localhost:8080/auth/signup", { username, password });
+      const res = await axios.post(`${import.meta.env.VITE_API_URL}/auth/signup`, {
+        username,
+        password,
+      });
       localStorage.setItem("token", res.data.token);
       navigate("/editor");
     } catch (err) {
@@ -44,11 +48,14 @@ function Signup() {
               onChange={(e) => setUsername(e.target.value)}
             />
             <p className="text-sm sm:text-md md:text-lg">Password</p>
-            <input
-              type="text"
-              className="border border-gray-200 w-[100%] px-2 py-1 text-sm sm:text-md md:text-lg rounded-lg"
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <div className="relative">
+              <input
+                type={showPass ? "text" : "password"}
+                className="border border-gray-200 w-[100%] px-2 py-1 text-sm sm:text-md md:text-lg rounded-lg"
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <button type="button" onClick={()=>setShowPass(!showPass)} className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700 cursor-pointer">{showPass ? "Hide" : "Show"}</button>
+            </div>
           </div>
           <button
             type="submit"

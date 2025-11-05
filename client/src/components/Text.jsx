@@ -5,21 +5,31 @@ import OpenDocument from "./OpenDocument";
 import NewDocument from "./NewDocument";
 import HomePage from "./HomePage";
 import { useNavigate } from "react-router-dom";
+import { jwtDecode } from "jwt-decode";
 
-function Text({ actionState, setActionState, documentId, setDocumentId }) {
+function Text({
+  actionState,
+  setActionState,
+  documentId,
+  setDocumentId,
+  access,
+  setAccess,
+}) {
   const editorRef = useRef(null);
   const quillRef = useRef(null);
   const [content, setContent] = useState("");
   const socketRef = useRef(null);
   const wsUrl = import.meta.env.VITE_WEBSOCKET_URL;
   const token = localStorage.getItem("token");
+
   const navitage = useNavigate();
 
   const isTypingRef = useRef(false);
   const typingTimeOutRef = useRef(null);
   const [documentIds, setDocumentIds] = useState([]);
-
   const [newDoc, setNewDoc] = useState(false);
+
+  const decoded = jwtDecode(token);
 
   useEffect(() => {
     if (!token) navitage("/login");
@@ -50,12 +60,16 @@ function Text({ actionState, setActionState, documentId, setDocumentId }) {
       } else {
         setActionState("edit");
         if (!isTypingRef.current && quillRef.current) {
-          setContent(receivedJSON.message);
+          console.log(receivedJSON);
+          // if (receivedJSON.documentId === documentId)
+            setContent(receivedJSON.message);
+          if (receivedJSON.access) setAccess(receivedJSON.access);
+          // console.log(receivedJSON)
         }
         // console.log("Event", event.data);
       }
     };
-    
+
     socketRef.current.onclose = () => {
       console.log("Websocket connection closed...");
     };
@@ -66,6 +80,16 @@ function Text({ actionState, setActionState, documentId, setDocumentId }) {
 
     // return ()=>socketRef.current.close();
   }, []);
+
+  useEffect(() => {
+    if (quillRef.current) {
+      if (access === "READ") {
+        quillRef.current.enable(false); // make it read-only
+      } else {
+        quillRef.current.enable(true); // allow editing for WRITE or OWNER
+      }
+    }
+  }, [access]);
 
   useEffect(() => {
     if (newDoc == true) return;
@@ -93,6 +117,7 @@ function Text({ actionState, setActionState, documentId, setDocumentId }) {
 
   useEffect(() => {
     if (actionState === "open") {
+      if (!socketRef.current || socketRef.current.readyState !== 1) return;
       if (socketRef.current && socketRef.current.readyState === 1) {
         const temp = {
           action: "getDocumentList",
@@ -106,6 +131,7 @@ function Text({ actionState, setActionState, documentId, setDocumentId }) {
         const temp = {
           action: "getDocument",
           documentId,
+          username: decoded.sub,
         };
         // console.log(temp);
         socketRef.current.send(JSON.stringify(temp));
