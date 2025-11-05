@@ -7,6 +7,7 @@ public class MessageSchema {
     private String message;
     private List<String> documentIds;
     private String action;
+    private String access;
 
     public MessageSchema() {
     }
@@ -16,6 +17,12 @@ public class MessageSchema {
         this.documentId = documentId;
         this.message = message;
     }
+//    public MessageSchema(String action, String documentId, String message,String access) {
+//        this.action = action;
+//        this.documentId = documentId;
+//        this.message = message;
+//        this.access=access;
+//    }
 
     public MessageSchema(String documentId, String message) {
         this.documentId = documentId;

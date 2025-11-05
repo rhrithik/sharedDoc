@@ -8,16 +8,18 @@ public class UserSchema {
     @Id
     private String id;
     private String username;
-    private String email;
-    private String password;
-    private String hashedPassword;
-    private String role;
+    private String password; // will be encoded
 
-    public UserSchema(String username, String email, String password, String hashedPassword, String role){
+    public UserSchema() {}
+
+    public UserSchema(String username, String password) {
         this.username = username;
-        this.email = email;
         this.password = password;
-        this.hashedPassword = hashedPassword;
-        this.role = role;
     }
+
+    public String getId() { return id; }
+    public String getUsername() { return username; }
+    public String getPassword() { return password; }
+    public void setUsername(String username) { this.username = username; }
+    public void setPassword(String password) { this.password = password; }
 }

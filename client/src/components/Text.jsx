@@ -1,9 +1,10 @@
-import React, {useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Quill from "quill";
 import "quill/dist/quill.snow.css";
 import OpenDocument from "./OpenDocument";
 import NewDocument from "./NewDocument";
 import HomePage from "./HomePage";
+import { useNavigate } from "react-router-dom";
 
 function Text({ actionState, setActionState, documentId, setDocumentId }) {
   const editorRef = useRef(null);
@@ -11,6 +12,8 @@ function Text({ actionState, setActionState, documentId, setDocumentId }) {
   const [content, setContent] = useState("");
   const socketRef = useRef(null);
   const wsUrl = import.meta.env.VITE_WEBSOCKET_URL;
+  const token = localStorage.getItem("token");
+  const navitage = useNavigate();
 
   const isTypingRef = useRef(false);
   const typingTimeOutRef = useRef(null);
@@ -19,18 +22,21 @@ function Text({ actionState, setActionState, documentId, setDocumentId }) {
   const [newDoc, setNewDoc] = useState(false);
 
   useEffect(() => {
+    if (!token) navitage("/login");
+  }, [token]);
+
+  useEffect(() => {
     if (quillRef.current && !isTypingRef.current) {
       if (quillRef.current.root.innerHTML !== content) {
         quillRef.current.clipboard.dangerouslyPasteHTML(content);
-        quillRef.current.setSelection(0,0);
+        quillRef.current.setSelection(0, 0);
       }
     }
   }, [content]);
 
-
-
   useEffect(() => {
-    socketRef.current = new WebSocket(wsUrl);
+    if (!token) navitage("/login");
+    socketRef.current = new WebSocket(`${wsUrl}?token=${token}`);
 
     socketRef.current.onopen = () => {
       console.log("Websocket connection opened...");
@@ -41,8 +47,7 @@ function Text({ actionState, setActionState, documentId, setDocumentId }) {
       // console.log(receivedJSON);
       if (receivedJSON.action && receivedJSON.action === "documentList") {
         setDocumentIds(receivedJSON.documentIds);
-      } 
-      else {
+      } else {
         setActionState("edit");
         if (!isTypingRef.current && quillRef.current) {
           setContent(receivedJSON.message);
@@ -50,7 +55,7 @@ function Text({ actionState, setActionState, documentId, setDocumentId }) {
         // console.log("Event", event.data);
       }
     };
-
+    
     socketRef.current.onclose = () => {
       console.log("Websocket connection closed...");
     };
@@ -62,9 +67,8 @@ function Text({ actionState, setActionState, documentId, setDocumentId }) {
     // return ()=>socketRef.current.close();
   }, []);
 
-
   useEffect(() => {
-    if(newDoc==true)return;
+    if (newDoc == true) return;
 
     const handler = setTimeout(() => {
       if (
@@ -88,11 +92,11 @@ function Text({ actionState, setActionState, documentId, setDocumentId }) {
   }, [content]);
 
   useEffect(() => {
-    if(actionState==="open"){
-      if(socketRef.current && socketRef.current.readyState===1){
-        const temp={
-          action:"getDocumentList"
-        }
+    if (actionState === "open") {
+      if (socketRef.current && socketRef.current.readyState === 1) {
+        const temp = {
+          action: "getDocumentList",
+        };
         socketRef.current.send(JSON.stringify(temp));
       }
     }
@@ -117,64 +121,60 @@ function Text({ actionState, setActionState, documentId, setDocumentId }) {
         socketRef.current.send(JSON.stringify(temp));
       }
     }
-  }, [documentId,actionState]);
+  }, [documentId, actionState]);
 
   useEffect(() => {
-
-  if (quillRef.current) {
-    quillRef.current.off('text-change');
-    quillRef.current = null;
-    if (editorRef.current) {
-      editorRef.current.innerHTML = "";
-    }
-  }
-
-  if (editorRef.current) {
-    setNewDoc(true);
-    quillRef.current = new Quill(editorRef.current, {
-      theme: "snow",
-      placeholder: "Start typing...",
-      modules: {
-        toolbar: [
-          ["bold", "italic", "underline"],
-          [{ header: [1, 2, 3, false] }],
-          ["link", "blockquote", "code-block"],
-          [{ list: "ordered" }, { list: "bullet" }],
-        ],
-      },
-    });
-
-    if (content) {
-      quillRef.current.clipboard.dangerouslyPasteHTML(content);
-      setTimeout(() => {
-        try {
-          const length = quillRef.current.getLength();
-          quillRef.current.setSelection(length - 1, 0);
-        } catch (e) {
-          console.warn("setSelection error: ", e);
-        }
-      }, 100);
-    }
-
-    quillRef.current.on("text-change", (delta, oldDelta, source) => {
-      if (source === "user") {
-        isTypingRef.current = true;
-        setContent(quillRef.current.root.innerHTML);
-
-        if (typingTimeOutRef.current) clearTimeout(typingTimeOutRef.current);
-
-        typingTimeOutRef.current = setTimeout(() => {
-          isTypingRef.current = false;
-        }, 1500);
+    if (quillRef.current) {
+      quillRef.current.off("text-change");
+      quillRef.current = null;
+      if (editorRef.current) {
+        editorRef.current.innerHTML = "";
       }
-    });
-  }
+    }
 
-  setNewDoc(false);
-}, [actionState, documentId]);
+    if (editorRef.current) {
+      setNewDoc(true);
+      quillRef.current = new Quill(editorRef.current, {
+        theme: "snow",
+        placeholder: "Start typing...",
+        modules: {
+          toolbar: [
+            ["bold", "italic", "underline"],
+            [{ header: [1, 2, 3, false] }],
+            ["link", "blockquote", "code-block"],
+            [{ list: "ordered" }, { list: "bullet" }],
+          ],
+        },
+      });
 
+      if (content) {
+        quillRef.current.clipboard.dangerouslyPasteHTML(content);
+        setTimeout(() => {
+          try {
+            const length = quillRef.current.getLength();
+            quillRef.current.setSelection(length - 1, 0);
+          } catch (e) {
+            console.warn("setSelection error: ", e);
+          }
+        }, 100);
+      }
 
+      quillRef.current.on("text-change", (delta, oldDelta, source) => {
+        if (source === "user") {
+          isTypingRef.current = true;
+          setContent(quillRef.current.root.innerHTML);
 
+          if (typingTimeOutRef.current) clearTimeout(typingTimeOutRef.current);
+
+          typingTimeOutRef.current = setTimeout(() => {
+            isTypingRef.current = false;
+          }, 1500);
+        }
+      });
+    }
+
+    setNewDoc(false);
+  }, [actionState, documentId]);
 
   if (actionState === "home") {
     return <HomePage setDocumentId={setDocumentId} />;
@@ -190,7 +190,7 @@ function Text({ actionState, setActionState, documentId, setDocumentId }) {
   if (actionState === "open") {
     return (
       <OpenDocument
-      socketRef={socketRef}
+        socketRef={socketRef}
         documentIds={documentIds}
         setActionState={setActionState}
         setDocumentId={setDocumentId}

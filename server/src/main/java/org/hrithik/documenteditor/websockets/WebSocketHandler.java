@@ -3,9 +3,11 @@ package org.hrithik.documenteditor.websockets;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hrithik.documenteditor.classes.DocumentEditor;
 import org.hrithik.documenteditor.classes.DocumentElement;
+import org.hrithik.documenteditor.enums.accessEnum;
 import org.hrithik.documenteditor.repositories.DocumentRepository;
 import org.hrithik.documenteditor.schemas.DocumentSchema;
 import org.hrithik.documenteditor.schemas.MessageSchema;
+import org.hrithik.documenteditor.security.JwtTokenProvider;
 import org.hrithik.documenteditor.services.DocumentCacheService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -26,6 +28,10 @@ public class WebSocketHandler extends TextWebSocketHandler {
     private DocumentEditor documentEditor;
 
     @Autowired
+    private JwtTokenProvider jwtTokenProvider;
+
+
+    @Autowired
     private DocumentRepository documentRepository;
 
     @Autowired
@@ -40,11 +46,19 @@ public class WebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
+        String token = session.getUri().getQuery().split("token=")[1];
+        if (jwtTokenProvider.validateToken(token)) {
+            String username = jwtTokenProvider.getUsernameFromToken(token);
+            session.getAttributes().put("username", username);
+            System.out.println("User connected: " + username);
+        } else {
+            session.close();
+            return;
+        }
         sessions.add(session);
 
         if (session.isOpen()) {
             getDocumentList(session);
-
 
         }
 
@@ -102,17 +116,21 @@ public class WebSocketHandler extends TextWebSocketHandler {
     }
 
     private void createDocument(WebSocketSession session, String documentId) {
-        DocumentSchema doc = documentCacheService.createDocument(documentId);
-        MessageSchema res = new MessageSchema(documentId, doc.getContent());
+        String username = (String) session.getAttributes().get("username");
+
+        DocumentSchema doc = new DocumentSchema(documentId, "",username);
+
+        documentRepository.save(doc);
+        documentCacheService.createDocument(documentId,username);
+
+        MessageSchema res = new MessageSchema("documentCreated", documentId);
         try {
             if (session.isOpen()) {
                 session.sendMessage(new TextMessage(objectMapper.writeValueAsString(res)));
             }
         } catch (IOException e) {
-            System.err.println("Failed to send message on connection established for session " + session.getId() + ": " + e.getMessage());
             cleanupSession(session);
         }
-
     }
 
     private void deleteDocument(String documentId) {
@@ -139,13 +157,33 @@ public class WebSocketHandler extends TextWebSocketHandler {
     }
 
     private void getDocumentList(WebSocketSession session) {
-        List<String> documentIdList = new ArrayList<>();
-        List<DocumentSchema> documentList = documentRepository.findAll();
-        for (DocumentSchema i : documentList) {
-            documentIdList.add(i.getId());
-        }
+//        String token = session.getHandshakeHeaders().getFirst("Authorization");
+//        if(token!=null && token.startsWith("Bearer")){
+//            token = token.substring(7);
+//        }
+//
+//
+//        List<String> documentIdList = new ArrayList<>();
+//        List<DocumentSchema> documentList = documentRepository.findAll();
+//        for (DocumentSchema i : documentList) {
+//            documentIdList.add(i.getId());
+//        }
         try {
+            Object usernameAttr = session.getAttributes().get("username");
+            if (usernameAttr == null) {
+                System.err.println("No username found in session.");
+                return;
+            }
+            String username = usernameAttr.toString();
 
+            List<String> documentIdList = new ArrayList<>();
+            List<DocumentSchema> allDocs = documentRepository.findByUserAccessContainingKey(username);
+
+            for (DocumentSchema doc : allDocs) {
+                if (doc.getUserAccess() != null && doc.getUserAccess().containsKey(username)) {
+                    documentIdList.add(doc.getId());
+                }
+            }
 
             MessageSchema message = new MessageSchema("documentList", documentIdList);
 

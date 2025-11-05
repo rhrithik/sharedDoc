@@ -1,28 +1,24 @@
 import "./App.css";
-import Text from "./components/Text";
-import NavBar from "./components/NavBar";
-import { useEffect, useState } from "react";
+import { Navigate, Route, Routes } from "react-router-dom";
+import Login from "./pages/Login";
+import Editor from "./pages/Editor";
+import Signup from "./pages/Signup";
 
 function App() {
-  
-    const [actionState, setActionState] = useState("home");
-      const [documentId, setDocumentId] = useState("");
-
-      useEffect(()=>{
-        if(documentId===""){
-          document.title="SharedDoc"
-        }
-        else{
-          document.title=`${documentId} | SharedDoc`
-        }
-      },[documentId])
+  const token = localStorage.getItem("token");
 
   return (
-    <div>
-      <NavBar setActionState={setActionState} documentId={documentId} />
-      <Text actionState={actionState} setActionState={setActionState} documentId={documentId} setDocumentId={setDocumentId} />
-    </div>
-)
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route
+          path="/editor"
+          element={<Editor />}
+        />
+        <Route path="*" element={<Navigate to="/login" />} />
+      </Routes>
+  
+  );
 }
 
 export default App;

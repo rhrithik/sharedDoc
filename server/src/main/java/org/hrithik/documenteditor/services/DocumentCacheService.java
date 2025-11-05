@@ -40,10 +40,10 @@ public class DocumentCacheService {
         }
     }
 
-    public DocumentSchema createDocument(String documentId){
+    public DocumentSchema createDocument(String documentId, String username){
         String cacheKey = DOC_KEY_PREFIX+documentId;
 
-        DocumentSchema doc = new DocumentSchema(documentId,"");
+        DocumentSchema doc = new DocumentSchema(documentId,"",username);
         documentRepository.save(doc);
         redisTemplate.opsForValue().set(cacheKey,doc,CACHE_TTL_SECONDS);
         return doc;
