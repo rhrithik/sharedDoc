@@ -3,64 +3,52 @@ package org.hrithik.documenteditor.schemas;
 import java.util.List;
 
 public class MessageSchema {
+    private String action;
     private String documentId;
     private String message;
-    private List<String[]> documentIds;
-    private String action;
     private String access;
     private String username;
+    private List<String[]> documentIds;
+    private List<String> sharedDocumentList;
 
-    public String getAccess() {
-        return access;
-    }
-
-    public void setAccess(String access) {
-        this.access = access;
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
-
-    public MessageSchema() {
-    }
-
-    public MessageSchema(String action, String documentId, String message, String access) {
+    private MessageSchema(String action) {
         this.action = action;
-        this.documentId = documentId;
-        this.message = message;
-        this.access=access;
-    }
-    public MessageSchema(String action, String documentId, String message, String access, String username) {
-        this.action = action;
-        this.documentId = documentId;
-        this.message = message;
-        this.access=access;
-        this.username=username;
     }
 
-//    public MessageSchema(String action, String documentId, String message,String access) {
-//        this.action = action;
-//        this.documentId = documentId;
-//        this.message = message;
-//        this.access=access;
-//    }
-
-    public MessageSchema(String documentId, String message) {
-        this.documentId = documentId;
-        this.message = message;
+    public static MessageSchema getSingleDocument(String action, String documentId, String message, String access) {
+        MessageSchema schema = new MessageSchema(action);
+        schema.documentId = documentId;
+        schema.message = message;
+        schema.access = access;
+        return schema;
     }
 
-    public MessageSchema(String action, List<String[]> documentIds) {
-        this.action = action;
-        this.documentIds = documentIds;
+    public static MessageSchema getSingleDocumentWithUser(String action, String documentId, String message, String access, String username) {
+        MessageSchema schema = new MessageSchema(action);
+        schema.documentId = documentId;
+        schema.message = message;
+        schema.access = access;
+        schema.username = username;
+        return schema;
     }
-    public MessageSchema(String action){
-        this.action=action;
+
+    public static MessageSchema getDocumentIdList(String action, List<String[]> documentIds) {
+        MessageSchema schema = new MessageSchema(action);
+        schema.documentIds = documentIds;
+        return schema;
+    }
+
+    public static MessageSchema getSharedDocuments(String action, List<String> sharedDocumentList) {
+        MessageSchema schema = new MessageSchema(action);
+        schema.sharedDocumentList = sharedDocumentList;
+        return schema;
+    }
+
+    public static MessageSchema simpleMessage(String action, String message) {
+
+        MessageSchema schema =  new MessageSchema(action);
+        schema.message=message;
+        return schema;
     }
 
     public String getAction() {
@@ -87,6 +75,22 @@ public class MessageSchema {
         this.message = message;
     }
 
+    public String getAccess() {
+        return access;
+    }
+
+    public void setAccess(String access) {
+        this.access = access;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
     public List<String[]> getDocumentIds() {
         return documentIds;
     }
@@ -94,5 +98,12 @@ public class MessageSchema {
     public void setDocumentIds(List<String[]> documentIds) {
         this.documentIds = documentIds;
     }
-}
 
+    public List<String> getSharedDocumentList() {
+        return sharedDocumentList;
+    }
+
+    public void setSharedDocumentList(List<String> sharedDocumentList) {
+        this.sharedDocumentList = sharedDocumentList;
+    }
+}

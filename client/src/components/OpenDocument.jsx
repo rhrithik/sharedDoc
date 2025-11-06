@@ -5,12 +5,21 @@ function OpenDocument({
   documentIds,
   setDocumentId,
   setActionState,
+  documentId,
 }) {
   const [docs, setDocs] = useState(documentIds);
+  
 
   useEffect(() => {
     setDocs(documentIds || []);
   }, [documentIds]);
+
+  useEffect(() => {
+    if (documentId != "") {
+      // console.log(documentId);
+      setActionState("edit");
+    }
+  }, [documentId]);
 
   if (!documentIds || !Array.isArray(documentIds)) {
     return <div>Loading document list...</div>;
@@ -18,7 +27,6 @@ function OpenDocument({
 
   const handleSelection = (id) => {
     setDocumentId(id);
-    setActionState("edit");
   };
 
   const handleDelete = (id) => {

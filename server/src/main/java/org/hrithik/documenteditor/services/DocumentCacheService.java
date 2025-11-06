@@ -63,6 +63,15 @@ public class DocumentCacheService {
         }
     }
 
+    public void saveDocument(DocumentSchema doc){
+        String cacheKey = DOC_KEY_PREFIX+doc.getId();
+        if(doc!=null){
+            documentRepository.save(doc);
+
+            redisTemplate.opsForValue().set(cacheKey,doc,CACHE_TTL_SECONDS);
+        }
+    }
+
     public void deleteDocument(String documentId){
         String cacheKey = DOC_KEY_PREFIX+documentId;
         redisTemplate.delete(cacheKey);

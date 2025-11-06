@@ -6,6 +6,7 @@ import NewDocument from "./NewDocument";
 import HomePage from "./HomePage";
 import { useNavigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
+import ShareDocument from "./ShareDocument";
 
 function Text({
   actionState,
@@ -28,8 +29,14 @@ function Text({
   const typingTimeOutRef = useRef(null);
   const [documentIds, setDocumentIds] = useState([]);
   const [newDoc, setNewDoc] = useState(false);
+  const [sharedDocList, setSharedDocList] = useState([]);
 
   const decoded = jwtDecode(token);
+  const documentIdRef = useRef(documentId);
+
+  useEffect(() => {
+    documentIdRef.current = documentId;
+  }, [documentId]);
 
   useEffect(() => {
     if (!token) navitage("/login");
@@ -57,12 +64,17 @@ function Text({
       // console.log(receivedJSON);
       if (receivedJSON.action && receivedJSON.action === "documentList") {
         setDocumentIds(receivedJSON.documentIds);
-      } else {
-        setActionState("edit");
+      } 
+      else if(receivedJSON.action && receivedJSON.action==="sharedDocumentList"){
+        // console.log(receivedJSON);
+        setSharedDocList(receivedJSON.documentIds);
+      }
+      else {
+        // setActionState("edit");
         if (!isTypingRef.current && quillRef.current) {
-          console.log(receivedJSON);
-          // if (receivedJSON.documentId === documentId)
+          if (receivedJSON.documentId === documentIdRef.current) {
             setContent(receivedJSON.message);
+          }
           if (receivedJSON.access) setAccess(receivedJSON.access);
           // console.log(receivedJSON)
         }
@@ -147,6 +159,15 @@ function Text({
         socketRef.current.send(JSON.stringify(temp));
       }
     }
+    else if(actionState==="share"){
+      if(socketRef.current && socketRef.current.readyState===1){
+        const temp={
+          action:"getSharedDocumentList",
+          documentId
+        }
+        socketRef.current.send(JSON.stringify(temp));
+      }
+    }
   }, [documentId, actionState]);
 
   useEffect(() => {
@@ -220,8 +241,14 @@ function Text({
         documentIds={documentIds}
         setActionState={setActionState}
         setDocumentId={setDocumentId}
+        documentId={documentId}
       />
     );
+  }
+  if(actionState==='share'){
+    return(
+      <ShareDocument setActionState={setActionState} socketRef={socketRef} documentId={documentId} sharedDocList={sharedDocList} setSharedDocList={setSharedDocList} />
+    )
   }
 
   if (actionState === "edit") {

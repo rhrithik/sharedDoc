@@ -17,10 +17,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 @Component
@@ -95,7 +92,7 @@ public class WebSocketHandler extends TextWebSocketHandler {
                     getDocumentList(session);
                     break;
                 case "getDocument":
-                    getDocument(session, receivedMessage.getDocumentId(),receivedMessage.getUsername());
+                    getDocument(session, receivedMessage.getDocumentId(), receivedMessage.getUsername());
                     break;
                 case "createDocument":
                     createDocument(session, receivedMessage.getDocumentId());
@@ -106,7 +103,12 @@ public class WebSocketHandler extends TextWebSocketHandler {
                 case "deleteDocument":
                     deleteDocument(receivedMessage.getDocumentId());
                     break;
-
+                case "getSharedDocumentList":
+                    getSharedDocumentList(session, receivedMessage.getDocumentId());
+                    break;
+                case "updateAccess":
+                    updateDocumentAccess(session, receivedMessage.getDocumentId(), receivedMessage.getUsername(), receivedMessage.getAccess());
+                    break;
                 default:
                     break;
 
@@ -118,15 +120,16 @@ public class WebSocketHandler extends TextWebSocketHandler {
     private void createDocument(WebSocketSession session, String documentId) {
         String username = (String) session.getAttributes().get("username");
 
-        DocumentSchema doc = new DocumentSchema(documentId, "",username);
+        DocumentSchema doc = new DocumentSchema(documentId, "", username);
+//
+//        documentRepository.save(doc);
+        documentCacheService.createDocument(documentId, username);
 
-        documentRepository.save(doc);
-        documentCacheService.createDocument(documentId,username);
-
-        MessageSchema res = new MessageSchema("documentCreated", documentId);
+        MessageSchema res = MessageSchema.simpleMessage("documentCreated", documentId);
         try {
             if (session.isOpen()) {
-                session.sendMessage(new TextMessage(objectMapper.writeValueAsString(res)));
+                safeSend(session,new TextMessage(objectMapper.writeValueAsString(res)));
+//                session.sendMessage(new TextMessage(objectMapper.writeValueAsString(res)));
             }
         } catch (IOException e) {
             cleanupSession(session);
@@ -141,12 +144,13 @@ public class WebSocketHandler extends TextWebSocketHandler {
         DocumentSchema doc = documentCacheService.getDocument(documentId);
 
         if (doc != null) {
-            String access = doc.getUserAccess().getOrDefault(username,"");
-            MessageSchema res = new MessageSchema("returnDocument", documentId, doc.getContent(),access);
+            String access = doc.getUserAccess().getOrDefault(username, "");
+            MessageSchema res = MessageSchema.getSingleDocument("returnDocument", documentId, doc.getContent(), access);
 
             try {
                 if (session.isOpen()) {
-                    session.sendMessage(new TextMessage(objectMapper.writeValueAsString(res)));
+                    safeSend(session,new TextMessage(objectMapper.writeValueAsString(res)));
+//                    session.sendMessage(new TextMessage(objectMapper.writeValueAsString(res)));
                 }
             } catch (IOException e) {
                 System.err.println("Failed to send message on connection established for session " + session.getId() + ": " + e.getMessage());
@@ -183,13 +187,15 @@ public class WebSocketHandler extends TextWebSocketHandler {
 
             for (DocumentSchema doc : allDocs) {
                 if (doc.getUserAccess() != null && doc.getUserAccess().containsKey(username)) {
-                    documentIdList.add(  new String[]{ doc.getId(),doc.getUserAccess().get(username)});
+                    documentIdList.add(new String[]{doc.getId(), doc.getUserAccess().get(username)});
                 }
             }
 
-            MessageSchema message = new MessageSchema("documentList", documentIdList);
+//            MessageSchema message = new MessageSchema("documentList", documentIdList);
+            MessageSchema message = MessageSchema.getDocumentIdList("documentList", documentIdList);
 
-            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(message)));
+            safeSend(session,new TextMessage(objectMapper.writeValueAsString(message)));
+//            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(message)));
         } catch (IOException e) {
             System.err.println("Cannot send message");
         }
@@ -199,6 +205,10 @@ public class WebSocketHandler extends TextWebSocketHandler {
 
     private void editDocument(WebSocketSession session, MessageSchema receivedMessage) {
         String documentId = receivedMessage.getDocumentId();
+        String author = (String)session.getAttributes().get("username");
+        DocumentSchema doc = documentCacheService.getDocument(documentId);
+
+        if(!doc.getUserAccess().containsKey(author) || doc.getUserAccess().get(author).equals("READ"))return;
 
         documentCacheService.saveDocument(documentId, receivedMessage.getMessage());
 
@@ -211,11 +221,14 @@ public class WebSocketHandler extends TextWebSocketHandler {
 
         List<WebSocketSession> toBeRemoved = new ArrayList<>();
 
+
         for (WebSocketSession curr : sessionList) {
+            String username = (String) curr.getAttributes().get("username");
+            if(!doc.getUserAccess().containsKey(username))continue;
             if (!curr.getId().equals(session.getId())) {
                 if (curr.isOpen()) {
                     try {
-                        curr.sendMessage(new TextMessage(objectMapper.writeValueAsString(receivedMessage)));
+                        safeSend(curr, new TextMessage(objectMapper.writeValueAsString(receivedMessage)));
                     } catch (IOException e) {
                         System.err.println("Failed to send message to session " + curr.getId() + " : " + e.getMessage());
                         cleanupSession(curr);
@@ -229,6 +242,59 @@ public class WebSocketHandler extends TextWebSocketHandler {
 
         sessionList.removeAll(toBeRemoved);
 
+    }
+
+    private void getSharedDocumentList(WebSocketSession session, String documentId) {
+        try {
+
+            DocumentSchema docs = documentCacheService.getDocument(documentId);
+            List<String[]> sharedDocumentList = new ArrayList<>();
+            for (String i : docs.getUserAccess().keySet()) {
+                sharedDocumentList.add(new String[]{i, docs.getUserAccess().get(i)});
+            }
+            for (String i[] : sharedDocumentList) {
+                System.out.println(Arrays.toString(i));
+            }
+
+            MessageSchema message = MessageSchema.getDocumentIdList("sharedDocumentList", sharedDocumentList);
+
+            safeSend(session,new TextMessage(objectMapper.writeValueAsString(message)));
+//            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(message)));
+        } catch (IOException e) {
+            System.err.println("Failed to send message on connection established for session " + session.getId() + ": " + e.getMessage());
+            cleanupSession(session);
+        }
+
+
+    }
+
+    private void updateDocumentAccess(WebSocketSession session, String documentId, String username, String access) {
+        try {
+
+            DocumentSchema doc = documentCacheService.getDocument(documentId);
+            HashMap<String, String> userAccess = doc.getUserAccess();
+            if (access.equals("delete") ){
+                userAccess.remove(username);
+            } else {
+                userAccess.put(username, access);
+            }
+            doc.setUserAccess(userAccess);
+            documentCacheService.saveDocument(doc);
+        } catch (Exception e) {
+            System.err.println("Failed to send message on connection established for session " + session.getId() + ": " + e.getMessage());
+            cleanupSession(session);
+        }
+
+    }
+
+    private void safeSend(WebSocketSession session, TextMessage msg) {
+        synchronized (session) {
+            try {
+                session.sendMessage(msg);
+            } catch (IOException e) {
+                System.err.println("Failed to send message: " + e.getMessage());
+            }
+        }
     }
 
 

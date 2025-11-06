@@ -35,7 +35,7 @@ function Editor() {
   
   return (
     <div>
-      <NavBar setActionState={setActionState} documentId={documentId} access={access} />
+      <NavBar setActionState={setActionState} setDocumentId={setDocumentId} documentId={documentId} access={access} />
       <Text
         actionState={actionState}
         setActionState={setActionState}
