@@ -3,7 +3,6 @@ import Quill from "quill";
 import "quill/dist/quill.snow.css";
 import OpenDocument from "./OpenDocument";
 import NewDocument from "./NewDocument";
-import HomePage from "./HomePage";
 import { useNavigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import ShareDocument from "./ShareDocument";
@@ -30,6 +29,7 @@ function Text({
   const [documentIds, setDocumentIds] = useState([]);
   const [newDoc, setNewDoc] = useState(false);
   const [sharedDocList, setSharedDocList] = useState([]);
+  const [newDocumentMessage, setNewDocumentMessage] = useState("");
 
   const decoded = jwtDecode(token);
   const documentIdRef = useRef(documentId);
@@ -53,42 +53,58 @@ function Text({
 
   useEffect(() => {
     if (!token) navitage("/login");
-    socketRef.current = new WebSocket(`${wsUrl}?token=${token}`);
+      socketRef.current = new WebSocket(`${wsUrl}?token=${token}`);
 
-    socketRef.current.onopen = () => {
-      console.log("Websocket connection opened...");
-    };
+      socketRef.current.onopen = () => {
+        console.log("Websocket connection opened...");
+      };
 
-    socketRef.current.onmessage = (event) => {
-      const receivedJSON = JSON.parse(event.data);
-      // console.log(receivedJSON);
-      if (receivedJSON.action && receivedJSON.action === "documentList") {
-        setDocumentIds(receivedJSON.documentIds);
-      } 
-      else if(receivedJSON.action && receivedJSON.action==="sharedDocumentList"){
+      socketRef.current.onmessage = (event) => {
+        const receivedJSON = JSON.parse(event.data);
         // console.log(receivedJSON);
-        setSharedDocList(receivedJSON.documentIds);
-      }
-      else {
-        // setActionState("edit");
-        if (!isTypingRef.current && quillRef.current) {
-          if (receivedJSON.documentId === documentIdRef.current) {
-            setContent(receivedJSON.message);
+        if (receivedJSON.action && receivedJSON.action === "documentList") {
+          setDocumentIds(receivedJSON.documentIds);
+        } else if (
+          receivedJSON.action &&
+          receivedJSON.action === "sharedDocumentList"
+        ) {
+          // console.log(receivedJSON);
+          setSharedDocList(receivedJSON.documentIds);
+        } else if (
+          receivedJSON.action &&
+          receivedJSON.action === "createDocExists"
+        ) {
+          setNewDocumentMessage(receivedJSON.message);
+          // setActionState("new");
+        } else if (
+          receivedJSON.action &&
+          receivedJSON.action === "documentCreated"
+        ) {
+          setDocumentId(receivedJSON.message);
+          setActionState("edit");
+        } else if(receivedJSON.action && receivedJSON.action === "returnDocument") {
+          setActionState("edit");
+          if (!isTypingRef.current && quillRef.current) {
+            if (receivedJSON.documentId === documentIdRef.current) {
+              setContent(receivedJSON.message);
+            }
+            if (receivedJSON.access) setAccess(receivedJSON.access);
+            // console.log(receivedJSON)
           }
-          if (receivedJSON.access) setAccess(receivedJSON.access);
-          // console.log(receivedJSON)
+          // console.log("Event", event.data);
         }
-        // console.log("Event", event.data);
-      }
-    };
+      };
 
-    socketRef.current.onclose = () => {
-      console.log("Websocket connection closed...");
-    };
+      socketRef.current.onclose = () => {
+        console.log("Websocket connection closed...");
+      };
 
-    socketRef.current.onerror = (error) => {
-      console.error("Websocket error: ", error);
-    };
+      socketRef.current.onerror = (error) => {
+        localStorage.removeItem("token");
+        navitage("/login"); 
+        // console.error("Websocket error: ", error);
+      };
+
 
     // return ()=>socketRef.current.close();
   }, []);
@@ -96,9 +112,9 @@ function Text({
   useEffect(() => {
     if (quillRef.current) {
       if (access === "READ") {
-        quillRef.current.enable(false); // make it read-only
+        quillRef.current.enable(false); 
       } else {
-        quillRef.current.enable(true); // allow editing for WRITE or OWNER
+        quillRef.current.enable(true); 
       }
     }
   }, [access]);
@@ -143,7 +159,6 @@ function Text({
         const temp = {
           action: "getDocument",
           documentId,
-          username: decoded.sub,
         };
         // console.log(temp);
         socketRef.current.send(JSON.stringify(temp));
@@ -158,13 +173,12 @@ function Text({
         // console.log(temp);
         socketRef.current.send(JSON.stringify(temp));
       }
-    }
-    else if(actionState==="share"){
-      if(socketRef.current && socketRef.current.readyState===1){
-        const temp={
-          action:"getSharedDocumentList",
-          documentId
-        }
+    } else if (actionState === "share") {
+      if (socketRef.current && socketRef.current.readyState === 1) {
+        const temp = {
+          action: "getSharedDocumentList",
+          documentId,
+        };
         socketRef.current.send(JSON.stringify(temp));
       }
     }
@@ -223,14 +237,14 @@ function Text({
     setNewDoc(false);
   }, [actionState, documentId]);
 
-  if (actionState === "home") {
-    return <HomePage setDocumentId={setDocumentId} />;
-  }
   if (actionState === "new") {
     return (
       <NewDocument
         setActionState={setActionState}
         setDocumentId={setDocumentId}
+        socketRef={socketRef}
+        newDocumentMessage={newDocumentMessage}
+        setNewDocumentMessage={setNewDocumentMessage}
       />
     );
   }
@@ -245,10 +259,16 @@ function Text({
       />
     );
   }
-  if(actionState==='share'){
-    return(
-      <ShareDocument setActionState={setActionState} socketRef={socketRef} documentId={documentId} sharedDocList={sharedDocList} setSharedDocList={setSharedDocList} />
-    )
+  if (actionState === "share") {
+    return (
+      <ShareDocument
+        setActionState={setActionState}
+        socketRef={socketRef}
+        documentId={documentId}
+        sharedDocList={sharedDocList}
+        setSharedDocList={setSharedDocList}
+      />
+    );
   }
 
   if (actionState === "edit") {

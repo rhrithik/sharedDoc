@@ -21,7 +21,7 @@ function NavBar({ setActionState, documentId, access, setDocumentId }) {
       <div className="py-2 flex flex-row justify-between items-center">
         <div className="flex flex-row gap-4">
           <img
-            onClick={() => setActionState("home")}
+            onClick={() => setActionState("open")}
             className="h-[80px] pl-5 cursor-pointer"
             src={SharedDoc1}
             alt=""

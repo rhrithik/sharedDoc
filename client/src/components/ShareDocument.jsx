@@ -6,10 +6,10 @@ function ShareDocument({
   documentId,
   sharedDocList,
   setSharedDocList,
-  setActionState
+  setActionState,
 }) {
-  const [username, setUsername] = useState();
-  const [newAccess, setNewAccess] = useState();
+  const [username, setUsername] = useState("");
+  const [newAccess, setNewAccess] = useState("OWNER");
 
   const handleUpdate = (id, access) => {
     let temp = {
@@ -18,6 +18,7 @@ function ShareDocument({
       username: id,
       access,
     };
+    console.log(temp);
     socketRef.current.send(JSON.stringify(temp));
 
     if (socketRef.current && socketRef.current.readyState === 1) {
@@ -30,6 +31,25 @@ function ShareDocument({
   };
 
   const handleDelete = (id) => {
+    // console.log(sharedDocList);
+    if (sharedDocList.length === 1) {
+      window.alert(
+        "This document currently has only 1 owner. Deleting this user will cause the document to be inaccessible.\nEither delete the document or add a new owner."
+      );
+      return;
+    }
+    let count = 0;
+    for (let i = 0; i < sharedDocList.length; i++) {
+      if (sharedDocList[i][1] === "OWNER" && sharedDocList[i][0]!=id) count++;
+      if (count > 1) break;
+    }
+    console.log(count);
+    if (count===0) {
+      window.alert(
+        "This document currently has only 1 owner. Deleting this user will cause the document to be inaccessible.\nEither delete the document or add a new owner."
+      );
+      return;
+    }
     const confirm = window.confirm(`Are you sure you want to remove ${id}?`);
     if (!confirm) return;
     handleUpdate(id, "delete");
@@ -42,7 +62,12 @@ function ShareDocument({
     >
       <div className="bg-white h-[70%] w-[70%] overflow-auto flex flex-col items-center p-5">
         <div className="relative flex items-center w-full">
-          <button className="absolute left-0 text-xl px-3 bg-blue-500 text-white rounded-full pb-1 cursor-pointer" onClick={()=>setActionState("edit")} >&larr;</button>
+          <button
+            className="absolute left-0 text-xl px-3 bg-blue-500 text-white rounded-full pb-1 cursor-pointer"
+            onClick={() => setActionState("edit")}
+          >
+            &larr;
+          </button>
           <p className="text-xl font-semibold mx-auto">Share Document</p>
         </div>
         <div className=" flex flex-col items-start w-full mt-5 gap-2 ">
@@ -58,6 +83,7 @@ function ShareDocument({
               <select
                 // onChange={(e) => handleUpdate(id[0], e.target.value)}
                 className="cursor-pointer border border-gray-500 rounded px-2"
+                defaultValue="OWNER"
                 onChange={(e) => setNewAccess(e.target.value)}
               >
                 <option className="cursor-pointer" value="OWNER">
